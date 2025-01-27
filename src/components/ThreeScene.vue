@@ -2,29 +2,69 @@
   <div class="scene-container">
     <div ref="container" class="three-container"></div>
     <div class="control-panel">
-      <label for="width">柜子宽度 (mm):</label>
-      <input 
-        type="range" 
-        id="width" 
-        min="500" 
-        max="1500" 
-        step="10" 
-        v-model="cabinetWidth"
-        @input="updateCabinetWidth"
-      >
-      <span>{{ cabinetWidth }}</span>
+      <div class="control-group">
+        <label>Width:</label>
+        <input 
+          type="range" 
+          min="30" 
+          max="450" 
+          step="1" 
+          v-model="cabinetWidthCm"
+          @input="updateCabinetWidth"
+        >
+        <span>{{ cabinetWidthCm }}cm</span>
+      </div>
+      
+      <div class="control-group">
+        <label>Height:</label>
+        <div class="button-group">
+          <button
+            v-for="h in heightOptions"
+            :key="h"
+            @click="updateHeight(h)"
+            :class="{ active: cabinetHeight === h }"
+          >
+            {{ h / 10 }}cm
+          </button>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <label>Depth:</label>
+        <div class="button-group">
+          <button
+            v-for="d in depthOptions"
+            :key="d"
+            @click="updateDepth(d)"
+            :class="{ active: cabinetDepth === d }"
+          >
+            {{ d / 10 }}cm
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, shallowRef, onMounted, onBeforeUnmount } from 'vue';
+import { ref, shallowRef, computed, onMounted, onBeforeUnmount } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 // Three.js相关变量
 const container = ref(null);
-const cabinetWidth = ref(1000);
+const cabinetWidth = ref(1000); // 内部单位：mm
+const cabinetHeight = ref(1030);
+const cabinetDepth = ref(240);
+const heightOptions = [330,530,730,1030,1330,1630,1930];
+const depthOptions = [240,320,400];
+
+// 计算属性：将宽度从mm转换为cm
+const cabinetWidthCm = computed({
+  get: () => cabinetWidth.value / 10, // mm -> cm
+  set: (value) => (cabinetWidth.value = value * 10), // cm -> mm
+});
+
 const scene = new THREE.Scene();
 const camera = shallowRef(null);
 const renderer = shallowRef(null);
@@ -42,40 +82,33 @@ function initThree() {
   const width = container.value.clientWidth;
   const height = container.value.clientHeight;
   
-  // 相机
   camera.value = new THREE.PerspectiveCamera(75, width / height, 0.1, 100000);
   camera.value.position.z = 5000;
 
-  // 添加网格辅助
   const gridHelper = new THREE.GridHelper(10000, 10);
   scene.add(gridHelper);
 
-  // 添加环境光
   const ambientLight = new THREE.AmbientLight(0xffffff, 1);
   scene.add(ambientLight);
 
-  // 添加日光
   const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
   directionalLight.position.set(1, 1, 1).normalize();
   scene.add(directionalLight);
 
-  // 添加点光源
   const pointLight = new THREE.PointLight(0xffffff, 10, 2000);
   pointLight.position.set(500, 1000, 500);
   scene.add(pointLight);
 
-  // 渲染器
   renderer.value = new THREE.WebGLRenderer({ antialias: true });
   renderer.value.setSize(width, height);
   container.value.appendChild(renderer.value.domElement);
 
-  // 控制器
   controls = new OrbitControls(camera.value, renderer.value.domElement);
   controls.enableDamping = true;
   controls.dampingFactor = 0.05;
   controls.screenSpacePanning = true;
 
-  // 创建木纹材质
+  // 材质
   const woodMaterial = new THREE.MeshStandardMaterial({
     color: 0xffffff,
     roughness: 0.7,
@@ -83,85 +116,109 @@ function initThree() {
     bumpScale: 0.05
   });
 
-  // 创建木纹纹理
   const textureLoader = new THREE.TextureLoader();
   const woodTexture = textureLoader.load('/light_cleaf_512_albedo.jpg');
   const woodBumpTexture = textureLoader.load('/light_cleaf_512_bump.jpg');
   woodMaterial.map = woodTexture;
   woodMaterial.bumpMap = woodBumpTexture;
 
-  // 创建底板
+  // 创建组件
   const createBottomMesh = () => {
-    const geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, 350);
+    const geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
     bottomMesh.value = new THREE.Mesh(geometry, woodMaterial);
     bottomMesh.value.position.set(0, 10, 0);
     scene.add(bottomMesh.value);
   };
 
-  // 创建顶板
   const createTopMesh = () => {
-    const geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, 350);
+    const geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
     topMesh.value = new THREE.Mesh(geometry, woodMaterial);
-    topMesh.value.position.set(0, 980, 0);
+    topMesh.value.position.set(0, cabinetHeight.value - 10, 0);
     scene.add(topMesh.value);
   };
 
-  // 创建左侧隔板
   const createLeftPanelMesh = () => {
-    const geometry = new THREE.BoxGeometry(20, 960, 350);
+    const geometry = new THREE.BoxGeometry(20, cabinetHeight.value - 40, cabinetDepth.value);
     leftPanelMesh.value = new THREE.Mesh(geometry, woodMaterial);
     updatePanelPosition();
     scene.add(leftPanelMesh.value);
   };
 
-  // 创建右侧隔板
   const createRightPanelMesh = () => {
-    const geometry = new THREE.BoxGeometry(20, 960, 350);
+    const geometry = new THREE.BoxGeometry(20, cabinetHeight.value - 40, cabinetDepth.value);
     rightPanelMesh.value = new THREE.Mesh(geometry, woodMaterial);
     updatePanelPosition();
     scene.add(rightPanelMesh.value);
   };
 
-
-  // 初始化创建所有板
   createBottomMesh();
   createTopMesh();
   createLeftPanelMesh();
   createRightPanelMesh();
 }
 
-// 更新隔板位置
+// 更新逻辑
 function updatePanelPosition() {
   if (leftPanelMesh.value && rightPanelMesh.value) {
     const offset = cabinetWidth.value / 2;
-    leftPanelMesh.value.position.set(-offset - 10, 500, 0);
-    rightPanelMesh.value.position.set(offset + 10, 500, 0);
+    leftPanelMesh.value.position.set(-offset + 10, cabinetHeight.value / 2, 0);
+    rightPanelMesh.value.position.set(offset - 10, cabinetHeight.value / 2, 0);
   }
 }
 
-// 更新柜子宽度
 const updateCabinetWidth = () => {
   if (bottomMesh.value && topMesh.value) {
-    // 更新底板和顶板几何体
     bottomMesh.value.geometry.dispose();
-    bottomMesh.value.geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, 350);
+    bottomMesh.value.geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
     
     topMesh.value.geometry.dispose();
-    topMesh.value.geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, 350);
+    topMesh.value.geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
     
-    // 更新隔板位置
     updatePanelPosition();
   }
 };
 
-// 动画循环
+const updateHeight = (newHeight) => {
+  cabinetHeight.value = newHeight;
+  
+  if (topMesh.value && leftPanelMesh.value && rightPanelMesh.value) {
+    // 更新顶板位置
+    topMesh.value.position.y = newHeight - 10;
+    
+    // 更新侧板高度
+    leftPanelMesh.value.geometry.dispose();
+    leftPanelMesh.value.geometry = new THREE.BoxGeometry(20, newHeight - 40, cabinetDepth.value);
+    
+    rightPanelMesh.value.geometry.dispose();
+    rightPanelMesh.value.geometry = new THREE.BoxGeometry(20, newHeight - 40, cabinetDepth.value);
+    
+    updatePanelPosition();
+  }
+};
+
+const updateDepth = (newDepth) => {
+  cabinetDepth.value = newDepth;
+  
+  // 更新所有板的深度
+  [bottomMesh.value, topMesh.value, leftPanelMesh.value, rightPanelMesh.value].forEach(mesh => {
+    if (mesh) {
+      mesh.geometry.dispose();
+      mesh.geometry = new THREE.BoxGeometry(
+        mesh === bottomMesh.value || mesh === topMesh.value ? cabinetWidth.value : 20,
+        mesh === bottomMesh.value || mesh === topMesh.value ? 20 : cabinetHeight.value - 40,
+        newDepth
+      );
+    }
+  });
+};
+
+// 动画和生命周期
 function animate() {
   controls.update();
   animationFrameId = requestAnimationFrame(animate);
   renderer.value.render(scene, camera.value);
 }
 
-// 窗口大小调整处理
 function onWindowResize() {
   const width = container.value.clientWidth;
   const height = container.value.clientHeight;
@@ -170,7 +227,6 @@ function onWindowResize() {
   renderer.value.setSize(width, height);
 }
 
-// 生命周期钩子
 onMounted(() => {
   initThree();
   animate();
@@ -197,28 +253,64 @@ onBeforeUnmount(() => {
   position: absolute;
   top: 0;
   left: 0;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
 }
 
 .control-panel {
   position: absolute;
   bottom: 20px;
   left: 20px;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.9);
   padding: 15px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  backdrop-filter: blur(4px);
   z-index: 1;
 }
 
-.control-panel label {
-  margin-right: 10px;
+.control-group {
+  margin-bottom: 15px;
 }
 
-.control-panel input[type="range"] {
+.control-group:last-child {
+  margin-bottom: 0;
+}
+
+.control-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #333;
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.button-group button {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #f8f9fa;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 14px;
+}
+
+.button-group button:hover {
+  background: #e9ecef;
+}
+
+.button-group button.active {
+  background: #007AFF;
+  color: white;
+  border-color: #007AFF;
+}
+
+input[type="range"] {
   width: 200px;
   margin-right: 10px;
+  accent-color: #007AFF;
 }
 </style>
