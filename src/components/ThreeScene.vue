@@ -123,6 +123,7 @@ function clearCustomObjects() {
 
 // 存储 GLB 模型的引用
 const glbModel = shallowRef(null);
+const bgModel = shallowRef(null);
 
 // 加载 GLB 模型
 function loadGLBModel() {
@@ -149,6 +150,32 @@ function loadGLBModel() {
     undefined,
     (error) => {
       console.error('Error loading GLB model:', error);
+    }
+  );
+}
+
+// 加载背景 GLB 模型
+function loadBackgroundModel() {
+  const loader = new GLTFLoader();
+  loader.load(
+    '/bg.glb', // 背景 GLB 模型路径
+    (gltf) => {
+      const model = gltf.scene;
+
+      // 设置模型的缩放和位置（根据需要调整）
+      model.scale.set(1000, 1000, 1000); // 根据模型大小调整缩放
+      model.position.set(0, 0, -200); // 将背景模型放置在场景后方
+
+      // 标记模型为背景
+      model.userData.isBackground = true;
+
+      // 将模型存储到 bgModel 变量中
+      bgModel.value = model;
+      scene.add(model);
+    },
+    undefined,
+    (error) => {
+      console.error('Error loading background GLB model:', error);
     }
   );
 }
@@ -273,6 +300,7 @@ function onWindowResize() {
 onMounted(() => {
   initThree();
   loadGLBModel(); // 加载 GLB 模型
+  loadBackgroundModel(); // 加载背景 GLB 模型
   updateAllStructures(); // 初始化默认结构
   animate();
   window.addEventListener('resize', onWindowResize);
