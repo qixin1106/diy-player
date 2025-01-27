@@ -87,7 +87,7 @@ function initThree() {
   const height = container.value.clientHeight;
 
   camera.value = new THREE.PerspectiveCamera(75, width / height, 0.1, 10000);
-  camera.value.position.z = 5000;
+  camera.value.position.z = 2000;
 
   const gridHelper = new THREE.GridHelper(10000, 10);
   scene.add(gridHelper);
@@ -111,61 +111,93 @@ function initThree() {
   loadWoodTexture();
 }
 
-// 动态更新高度逻辑
-const updateHeight = (newHeight) => {
-  const currentIndex = heightOptions.indexOf(newHeight); // 当前高度索引
-  if (currentIndex === -1) return;
+// 清理场景中的自定义部件
+function clearCustomObjects() {
+  scene.children = scene.children.filter(
+    (obj) => !(obj.userData?.isPanel || obj.userData?.isDivider)
+  );
+}
 
-  cabinetHeight.value = newHeight;
-
-  // 清理场景中所有旧的板件
-  scene.children = scene.children.filter((object) => !(object.userData && object.userData.isPanel));
-
-  // 始终创建底板
+// 生成水平板件（底板、顶板、侧板）
+function generateHorizontalPanels() {
+  // 生成底板
   const bottomGeometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
   const bottomMesh = new THREE.Mesh(bottomGeometry, woodMaterial);
-  bottomMesh.position.set(0, 10, 0); // 底板位于 y=10 的高度
+  bottomMesh.position.set(0, 10, 0);
   bottomMesh.userData.isPanel = true;
   scene.add(bottomMesh);
 
-  // 动态创建每层
-  for (let i = 0; i <= currentIndex; i++) {
-    const bottomHeight = i === 0 ? 0 : heightOptions[i - 1]; // 当前层的底板高度
-    const topHeight = heightOptions[i]; // 当前层的顶板高度
+  // 生成各层结构
+  const currentHeightIndex = heightOptions.indexOf(cabinetHeight.value);
+  for (let i = 0; i <= currentHeightIndex; i++) {
+    const topHeight = heightOptions[i];
 
     // 顶板
     const topGeometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
     const topMesh = new THREE.Mesh(topGeometry, woodMaterial);
-    topMesh.position.set(0, topHeight - 10, 0); // 顶板高度位于顶板中心
+    topMesh.position.set(0, topHeight - 10, 0);
     topMesh.userData.isPanel = true;
     scene.add(topMesh);
 
-    // 侧板
-    const sideHeight = topHeight - bottomHeight - 20; // 当前层侧板高度
+    // 侧板（左右各一个）
+    const sideHeight = topHeight - (i > 0 ? heightOptions[i - 1] : 0) - 20;
     const sideGeometry = new THREE.BoxGeometry(20, sideHeight, cabinetDepth.value);
 
     const leftPanel = new THREE.Mesh(sideGeometry, woodMaterial);
-    leftPanel.position.set(-cabinetWidth.value / 2 + 10, (topHeight + bottomHeight) / 2 - 10, 0); // 位于当前层中间
+    leftPanel.position.set(-cabinetWidth.value / 2 + 10, (topHeight + (i > 0 ? heightOptions[i - 1] : 0)) / 2 - 10, 0);
     leftPanel.userData.isPanel = true;
     scene.add(leftPanel);
 
     const rightPanel = new THREE.Mesh(sideGeometry, woodMaterial);
-    rightPanel.position.set(cabinetWidth.value / 2 - 10, (topHeight + bottomHeight) / 2 - 10, 0); // 位于当前层中间
+    rightPanel.position.set(cabinetWidth.value / 2 - 10, (topHeight + (i > 0 ? heightOptions[i - 1] : 0)) / 2 - 10, 0);
     rightPanel.userData.isPanel = true;
     scene.add(rightPanel);
   }
-};
+}
 
+// 生成垂直隔断
+function generateVerticalDividers() {
+  const sectionWidth = 300; // 每个窗口宽度的临界值 (300mm = 30cm)
+  const sections = Math.max(1, Math.floor(cabinetWidth.value / sectionWidth)); // 确保至少1个隔间
+  const actualSectionWidth = cabinetWidth.value / sections;
 
-// 更新宽度
+  for (let i = 0; i < sections - 1; i++) {
+    const xOffset = -cabinetWidth.value / 2 + (i + 1) * actualSectionWidth;
+    for (let j = 0; j < heightOptions.length && heightOptions[j] <= cabinetHeight.value; j++) {
+      const bottomHeight = j === 0 ? 0 : heightOptions[j - 1];
+      const topHeight = heightOptions[j];
+      const dividerHeight = topHeight - bottomHeight - 20;
+      const dividerGeometry = new THREE.BoxGeometry(20, dividerHeight, cabinetDepth.value);
+      const dividerMesh = new THREE.Mesh(dividerGeometry, woodMaterial);
+      dividerMesh.position.set(xOffset, (bottomHeight + topHeight) / 2 - 10, 0);
+      dividerMesh.userData.isDivider = true;
+      scene.add(dividerMesh);
+    }
+  }
+}
+
+// 更新所有结构
+function updateAllStructures() {
+  clearCustomObjects();
+  generateHorizontalPanels();
+  generateVerticalDividers();
+}
+
+// 动态更新宽度
 const updateCabinetWidth = () => {
-  updateHeight(cabinetHeight.value); // 重新更新高度，宽度改变会更新所有相关板件
+  updateAllStructures();
 };
 
-// 更新深度
+// 动态更新高度
+const updateHeight = (newHeight) => {
+  cabinetHeight.value = newHeight;
+  updateAllStructures();
+};
+
+// 动态更新深度
 const updateDepth = (newDepth) => {
   cabinetDepth.value = newDepth;
-  updateHeight(cabinetHeight.value); // 重新更新高度，深度改变会更新所有相关板件
+  updateAllStructures();
 };
 
 // 动画和生命周期
@@ -185,7 +217,7 @@ function onWindowResize() {
 
 onMounted(() => {
   initThree();
-  updateHeight(cabinetHeight.value); // 初始化默认高度
+  updateAllStructures(); // 初始化默认结构
   animate();
   window.addEventListener('resize', onWindowResize);
 });
