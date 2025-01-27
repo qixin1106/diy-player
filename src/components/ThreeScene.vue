@@ -4,17 +4,17 @@
     <div class="control-panel">
       <div class="control-group">
         <label>Width:</label>
-        <input 
-          type="range" 
-          min="30" 
-          max="450" 
-          step="1" 
+        <input
+          type="range"
+          min="30"
+          max="450"
+          step="1"
           v-model="cabinetWidthCm"
           @input="updateCabinetWidth"
-        >
+        />
         <span>{{ cabinetWidthCm }}cm</span>
       </div>
-      
+
       <div class="control-group">
         <label>Height:</label>
         <div class="button-group">
@@ -53,11 +53,11 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 
 // Three.js相关变量
 const container = ref(null);
-const cabinetWidth = ref(1000); // 内部单位：mm
-const cabinetHeight = ref(1030);
-const cabinetDepth = ref(240);
-const heightOptions = [330,530,730,1030,1330,1630,1930];
-const depthOptions = [240,320,400];
+const cabinetWidth = ref(300); // 默认宽度：300mm
+const cabinetHeight = ref(330); // 默认高度：330mm
+const cabinetDepth = ref(240); // 默认深度：240mm
+const heightOptions = [330, 530, 730, 1030, 1330, 1630, 1930];
+const depthOptions = [240, 320, 400];
 
 // 计算属性：将宽度从mm转换为cm
 const cabinetWidthCm = computed({
@@ -71,18 +71,22 @@ const renderer = shallowRef(null);
 let animationFrameId = null;
 let controls;
 
-// 引用板对象
-const bottomMesh = shallowRef(null);
-const topMesh = shallowRef(null);
-const leftPanelMesh = shallowRef(null);
-const rightPanelMesh = shallowRef(null);
+// 材质
+const woodMaterial = new THREE.MeshStandardMaterial();
+function loadWoodTexture() {
+  const textureLoader = new THREE.TextureLoader();
+  woodMaterial.map = textureLoader.load('/light_cleaf_512_albedo.jpg');
+  woodMaterial.bumpMap = textureLoader.load('/light_cleaf_512_bump.jpg');
+  woodMaterial.roughness = 0.7;
+  woodMaterial.metalness = 0.1;
+}
 
 // 初始化Three.js场景
 function initThree() {
   const width = container.value.clientWidth;
   const height = container.value.clientHeight;
-  
-  camera.value = new THREE.PerspectiveCamera(75, width / height, 0.1, 100000);
+
+  camera.value = new THREE.PerspectiveCamera(75, width / height, 0.1, 10000);
   camera.value.position.z = 5000;
 
   const gridHelper = new THREE.GridHelper(10000, 10);
@@ -95,10 +99,6 @@ function initThree() {
   directionalLight.position.set(1, 1, 1).normalize();
   scene.add(directionalLight);
 
-  const pointLight = new THREE.PointLight(0xffffff, 10, 2000);
-  pointLight.position.set(500, 1000, 500);
-  scene.add(pointLight);
-
   renderer.value = new THREE.WebGLRenderer({ antialias: true });
   renderer.value.setSize(width, height);
   container.value.appendChild(renderer.value.domElement);
@@ -108,108 +108,64 @@ function initThree() {
   controls.dampingFactor = 0.05;
   controls.screenSpacePanning = true;
 
-  // 材质
-  const woodMaterial = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    roughness: 0.7,
-    metalness: 0.1,
-    bumpScale: 0.05
-  });
-
-  const textureLoader = new THREE.TextureLoader();
-  const woodTexture = textureLoader.load('/light_cleaf_512_albedo.jpg');
-  const woodBumpTexture = textureLoader.load('/light_cleaf_512_bump.jpg');
-  woodMaterial.map = woodTexture;
-  woodMaterial.bumpMap = woodBumpTexture;
-
-  // 创建组件
-  const createBottomMesh = () => {
-    const geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
-    bottomMesh.value = new THREE.Mesh(geometry, woodMaterial);
-    bottomMesh.value.position.set(0, 10, 0);
-    scene.add(bottomMesh.value);
-  };
-
-  const createTopMesh = () => {
-    const geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
-    topMesh.value = new THREE.Mesh(geometry, woodMaterial);
-    topMesh.value.position.set(0, cabinetHeight.value - 10, 0);
-    scene.add(topMesh.value);
-  };
-
-  const createLeftPanelMesh = () => {
-    const geometry = new THREE.BoxGeometry(20, cabinetHeight.value - 40, cabinetDepth.value);
-    leftPanelMesh.value = new THREE.Mesh(geometry, woodMaterial);
-    updatePanelPosition();
-    scene.add(leftPanelMesh.value);
-  };
-
-  const createRightPanelMesh = () => {
-    const geometry = new THREE.BoxGeometry(20, cabinetHeight.value - 40, cabinetDepth.value);
-    rightPanelMesh.value = new THREE.Mesh(geometry, woodMaterial);
-    updatePanelPosition();
-    scene.add(rightPanelMesh.value);
-  };
-
-  createBottomMesh();
-  createTopMesh();
-  createLeftPanelMesh();
-  createRightPanelMesh();
+  loadWoodTexture();
 }
 
-// 更新逻辑
-function updatePanelPosition() {
-  if (leftPanelMesh.value && rightPanelMesh.value) {
-    const offset = cabinetWidth.value / 2;
-    leftPanelMesh.value.position.set(-offset + 10, cabinetHeight.value / 2, 0);
-    rightPanelMesh.value.position.set(offset - 10, cabinetHeight.value / 2, 0);
-  }
-}
-
-const updateCabinetWidth = () => {
-  if (bottomMesh.value && topMesh.value) {
-    bottomMesh.value.geometry.dispose();
-    bottomMesh.value.geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
-    
-    topMesh.value.geometry.dispose();
-    topMesh.value.geometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
-    
-    updatePanelPosition();
-  }
-};
-
+// 动态更新高度逻辑
 const updateHeight = (newHeight) => {
+  const currentIndex = heightOptions.indexOf(newHeight); // 当前高度索引
+  if (currentIndex === -1) return;
+
   cabinetHeight.value = newHeight;
-  
-  if (topMesh.value && leftPanelMesh.value && rightPanelMesh.value) {
-    // 更新顶板位置
-    topMesh.value.position.y = newHeight - 10;
-    
-    // 更新侧板高度
-    leftPanelMesh.value.geometry.dispose();
-    leftPanelMesh.value.geometry = new THREE.BoxGeometry(20, newHeight - 40, cabinetDepth.value);
-    
-    rightPanelMesh.value.geometry.dispose();
-    rightPanelMesh.value.geometry = new THREE.BoxGeometry(20, newHeight - 40, cabinetDepth.value);
-    
-    updatePanelPosition();
+
+  // 清理场景中所有旧的板件
+  scene.children = scene.children.filter((object) => !(object.userData && object.userData.isPanel));
+
+  // 始终创建底板
+  const bottomGeometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
+  const bottomMesh = new THREE.Mesh(bottomGeometry, woodMaterial);
+  bottomMesh.position.set(0, 10, 0); // 底板位于 y=10 的高度
+  bottomMesh.userData.isPanel = true;
+  scene.add(bottomMesh);
+
+  // 动态创建每层
+  for (let i = 0; i <= currentIndex; i++) {
+    const bottomHeight = i === 0 ? 0 : heightOptions[i - 1]; // 当前层的底板高度
+    const topHeight = heightOptions[i]; // 当前层的顶板高度
+
+    // 顶板
+    const topGeometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
+    const topMesh = new THREE.Mesh(topGeometry, woodMaterial);
+    topMesh.position.set(0, topHeight - 10, 0); // 顶板高度位于顶板中心
+    topMesh.userData.isPanel = true;
+    scene.add(topMesh);
+
+    // 侧板
+    const sideHeight = topHeight - bottomHeight - 20; // 当前层侧板高度
+    const sideGeometry = new THREE.BoxGeometry(20, sideHeight, cabinetDepth.value);
+
+    const leftPanel = new THREE.Mesh(sideGeometry, woodMaterial);
+    leftPanel.position.set(-cabinetWidth.value / 2 + 10, (topHeight + bottomHeight) / 2 - 10, 0); // 位于当前层中间
+    leftPanel.userData.isPanel = true;
+    scene.add(leftPanel);
+
+    const rightPanel = new THREE.Mesh(sideGeometry, woodMaterial);
+    rightPanel.position.set(cabinetWidth.value / 2 - 10, (topHeight + bottomHeight) / 2 - 10, 0); // 位于当前层中间
+    rightPanel.userData.isPanel = true;
+    scene.add(rightPanel);
   }
 };
 
+
+// 更新宽度
+const updateCabinetWidth = () => {
+  updateHeight(cabinetHeight.value); // 重新更新高度，宽度改变会更新所有相关板件
+};
+
+// 更新深度
 const updateDepth = (newDepth) => {
   cabinetDepth.value = newDepth;
-  
-  // 更新所有板的深度
-  [bottomMesh.value, topMesh.value, leftPanelMesh.value, rightPanelMesh.value].forEach(mesh => {
-    if (mesh) {
-      mesh.geometry.dispose();
-      mesh.geometry = new THREE.BoxGeometry(
-        mesh === bottomMesh.value || mesh === topMesh.value ? cabinetWidth.value : 20,
-        mesh === bottomMesh.value || mesh === topMesh.value ? 20 : cabinetHeight.value - 40,
-        newDepth
-      );
-    }
-  });
+  updateHeight(cabinetHeight.value); // 重新更新高度，深度改变会更新所有相关板件
 };
 
 // 动画和生命周期
@@ -229,6 +185,7 @@ function onWindowResize() {
 
 onMounted(() => {
   initThree();
+  updateHeight(cabinetHeight.value); // 初始化默认高度
   animate();
   window.addEventListener('resize', onWindowResize);
 });
@@ -271,21 +228,11 @@ onBeforeUnmount(() => {
   margin-bottom: 15px;
 }
 
-.control-group:last-child {
-  margin-bottom: 0;
-}
-
 .control-group label {
   display: block;
   margin-bottom: 8px;
   font-weight: 500;
   color: #333;
-}
-
-.button-group {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 .button-group button {
@@ -294,7 +241,6 @@ onBeforeUnmount(() => {
   border-radius: 6px;
   background: #f8f9fa;
   cursor: pointer;
-  transition: all 0.2s;
   font-size: 14px;
 }
 
