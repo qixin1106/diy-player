@@ -50,6 +50,7 @@
 import { ref, shallowRef, computed, onMounted, onBeforeUnmount } from 'vue';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 // Three.js相关变量
 const container = ref(null);
@@ -88,8 +89,8 @@ function initThree() {
 
   camera.value = new THREE.PerspectiveCamera(75, width / height, 0.1, 10000);
   camera.value.position.z = 2000;
-  camera.value.position.y = 2000;
-  camera.value.lookAt(0, 0, 0);
+  camera.value.position.y = 1750;
+  camera.value.lookAt(0, cabinetHeight.value / 2, 0);
 
   const gridHelper = new THREE.GridHelper(10000, 10);
   scene.add(gridHelper);
@@ -120,6 +121,48 @@ function clearCustomObjects() {
   );
 }
 
+// 存储 GLB 模型的引用
+const glbModel = shallowRef(null);
+
+// 加载 GLB 模型
+function loadGLBModel() {
+  const loader = new GLTFLoader();
+  loader.load(
+    '/shadow_man.glb', // GLB 模型路径
+    (gltf) => {
+      const model = gltf.scene;
+
+      // 设置模型的缩放和旋转（根据需要调整）
+      model.scale.set(10, 10, 10); // 根据模型大小调整缩放
+      model.rotation.y = 0; // 根据需要调整旋转
+
+      // 标记模型为平面
+      model.userData.isPlane = true;
+
+      // 将模型存储到 glbModel 变量中
+      glbModel.value = model;
+      scene.add(model);
+
+      // 初始化模型位置
+      updateGLBModelPosition();
+    },
+    undefined,
+    (error) => {
+      console.error('Error loading GLB model:', error);
+    }
+  );
+}
+
+// 更新 GLB 模型的位置
+function updateGLBModelPosition() {
+  if (glbModel.value) {
+    const planeDistance = 500; // 50cm
+    const planeX = -cabinetWidth.value / 2 - planeDistance + 10; // 距离左侧边板 50cm
+    const planeY = 0; // 模型底部对齐地面
+    glbModel.value.position.set(planeX, planeY, 0);
+  }
+}
+
 // 生成水平板件（底板、顶板、侧板）
 function generateHorizontalPanels() {
   // 生成底板
@@ -146,12 +189,20 @@ function generateHorizontalPanels() {
     const sideGeometry = new THREE.BoxGeometry(20, sideHeight, cabinetDepth.value);
 
     const leftPanel = new THREE.Mesh(sideGeometry, woodMaterial);
-    leftPanel.position.set(-cabinetWidth.value / 2 + 10, (topHeight + (i > 0 ? heightOptions[i - 1] : 0)) / 2 - 10, 0);
+    leftPanel.position.set(
+      -cabinetWidth.value / 2 + 10,
+      (topHeight + (i > 0 ? heightOptions[i - 1] : 0)) / 2 - 10,
+      0
+    );
     leftPanel.userData.isPanel = true;
     scene.add(leftPanel);
 
     const rightPanel = new THREE.Mesh(sideGeometry, woodMaterial);
-    rightPanel.position.set(cabinetWidth.value / 2 - 10, (topHeight + (i > 0 ? heightOptions[i - 1] : 0)) / 2 - 10, 0);
+    rightPanel.position.set(
+      cabinetWidth.value / 2 - 10,
+      (topHeight + (i > 0 ? heightOptions[i - 1] : 0)) / 2 - 10,
+      0
+    );
     rightPanel.userData.isPanel = true;
     scene.add(rightPanel);
   }
@@ -183,6 +234,7 @@ function updateAllStructures() {
   clearCustomObjects();
   generateHorizontalPanels();
   generateVerticalDividers();
+  updateGLBModelPosition(); // 更新 GLB 模型的位置
 }
 
 // 动态更新宽度
@@ -205,6 +257,7 @@ const updateDepth = (newDepth) => {
 // 动画和生命周期
 function animate() {
   controls.update();
+  camera.value.lookAt(0, cabinetHeight.value / 2, 0);
   animationFrameId = requestAnimationFrame(animate);
   renderer.value.render(scene, camera.value);
 }
@@ -219,6 +272,7 @@ function onWindowResize() {
 
 onMounted(() => {
   initThree();
+  loadGLBModel(); // 加载 GLB 模型
   updateAllStructures(); // 初始化默认结构
   animate();
   window.addEventListener('resize', onWindowResize);
