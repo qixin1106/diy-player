@@ -88,6 +88,8 @@ function initThree() {
 
   camera.value = new THREE.PerspectiveCamera(75, width / height, 0.1, 10000);
   camera.value.position.z = 2000;
+  camera.value.position.y = 2000;
+  camera.value.lookAt(0, 0, 0);
 
   const gridHelper = new THREE.GridHelper(10000, 10);
   scene.add(gridHelper);
