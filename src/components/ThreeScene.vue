@@ -4,26 +4,14 @@
     <div class="control-panel">
       <div class="control-group">
         <label>Width:</label>
-        <input
-          type="range"
-          min="30"
-          max="450"
-          step="1"
-          v-model="cabinetWidthCm"
-          @input="updateCabinetWidth"
-        />
+        <input type="range" min="30" max="450" step="1" v-model="cabinetWidthCm" @input="updateCabinetWidth" />
         <span>{{ cabinetWidthCm }}cm</span>
       </div>
 
       <div class="control-group">
         <label>Height:</label>
         <div class="button-group">
-          <button
-            v-for="h in heightOptions"
-            :key="h"
-            @click="updateHeight(h)"
-            :class="{ active: cabinetHeight === h }"
-          >
+          <button v-for="h in heightOptions" :key="h" @click="updateHeight(h)" :class="{ active: cabinetHeight === h }">
             {{ h / 10 }}cm
           </button>
         </div>
@@ -32,12 +20,7 @@
       <div class="control-group">
         <label>Depth:</label>
         <div class="button-group">
-          <button
-            v-for="d in depthOptions"
-            :key="d"
-            @click="updateDepth(d)"
-            :class="{ active: cabinetDepth === d }"
-          >
+          <button v-for="d in depthOptions" :key="d" @click="updateDepth(d)" :class="{ active: cabinetDepth === d }">
             {{ d / 10 }}cm
           </button>
         </div>
@@ -92,18 +75,32 @@ function initThree() {
   camera.value.position.y = 1750;
   camera.value.lookAt(0, cabinetHeight.value / 2, 0);
 
-  const gridHelper = new THREE.GridHelper(10000, 10);
-  scene.add(gridHelper);
+  // const gridHelper = new THREE.GridHelper(10000, 10);
+  // scene.add(gridHelper);
 
   const ambientLight = new THREE.AmbientLight(0xffffff, 1);
   scene.add(ambientLight);
 
   const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-  directionalLight.position.set(1, 1, 1).normalize();
+  directionalLight.position.set(5000, 5000, 5000).normalize();
+  directionalLight.castShadow = true; // 启用灯光的阴影投射
+  // 设置阴影映射的参数
+  directionalLight.shadow.mapSize.width = 4096; // 阴影映射的宽度
+  directionalLight.shadow.mapSize.height = 4096; // 阴影映射的高度
+  directionalLight.shadow.camera.left = -50000; // 阴影相机的左边界
+  directionalLight.shadow.camera.right = 50000; // 阴影相机的右边界
+  directionalLight.shadow.camera.top = 50000; // 阴影相机的上边界
+  directionalLight.shadow.camera.bottom = -50000; // 阴影相机的下边界
+  directionalLight.shadow.camera.near = 0.1; // 阴影相机的近裁剪面
+  directionalLight.shadow.camera.far = 100000; // 阴影相机的远裁剪面
   scene.add(directionalLight);
+
+
 
   renderer.value = new THREE.WebGLRenderer({ antialias: true });
   renderer.value.setSize(width, height);
+  renderer.value.shadowMap.enabled = true; // 启用阴影映射
+  renderer.value.shadowMap.type = THREE.PCFSoftShadowMap; // 设置阴影类型为软阴影
   container.value.appendChild(renderer.value.domElement);
 
   controls = new OrbitControls(camera.value, renderer.value.domElement);
@@ -132,10 +129,22 @@ function loadGLBModel() {
     '/shadow_man.glb', // GLB 模型路径
     (gltf) => {
       const model = gltf.scene;
+      model.castShadow = true; // 启用阴影投射
+      model.receiveShadow = true; // 启用阴影接收
 
       // 设置模型的缩放和旋转（根据需要调整）
       model.scale.set(10, 10, 10); // 根据模型大小调整缩放
       model.rotation.y = 0; // 根据需要调整旋转
+
+      // 遍历模型的所有子对象，并设置材质为 MeshBasicMaterial
+      model.traverse((child) => {
+        if (child.isMesh) {
+          child.material = new THREE.MeshBasicMaterial({ color: 0xd0d0d0 }); // 设置为白色
+          child.castShadow = true; // 启用阴影投射
+          child.receiveShadow = true; // 启用阴影接收
+        }
+      });
+
 
       // 标记模型为平面
       model.userData.isPlane = true;
@@ -165,6 +174,15 @@ function loadBackgroundModel() {
       // 设置模型的缩放和位置（根据需要调整）
       model.scale.set(1000, 1000, 1000); // 根据模型大小调整缩放
       model.position.set(0, 0, -200); // 将背景模型放置在场景后方
+
+      // 遍历模型的所有子对象，并设置阴影属性
+      model.traverse((child) => {
+        if (child.isMesh) {
+          child.material = new THREE.MeshStandardMaterial({ color: 0xa0a0a0 }); // 设置为白色
+          child.castShadow = true; // 启用阴影投射
+          child.receiveShadow = true; // 启用阴影接收
+        }
+      });
 
       // 标记模型为背景
       model.userData.isBackground = true;
@@ -196,6 +214,9 @@ function generateHorizontalPanels() {
   const bottomGeometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
   const bottomMesh = new THREE.Mesh(bottomGeometry, woodMaterial);
   bottomMesh.position.set(0, 10, 0);
+  bottomMesh.castShadow = true; // 启用阴影投射
+  bottomMesh.receiveShadow = true; // 启用阴影接收
+
   bottomMesh.userData.isPanel = true;
   scene.add(bottomMesh);
 
@@ -208,6 +229,9 @@ function generateHorizontalPanels() {
     const topGeometry = new THREE.BoxGeometry(cabinetWidth.value, 20, cabinetDepth.value);
     const topMesh = new THREE.Mesh(topGeometry, woodMaterial);
     topMesh.position.set(0, topHeight - 10, 0);
+    topMesh.castShadow = true; // 启用阴影投射
+    topMesh.receiveShadow = true; // 启用阴影接收
+
     topMesh.userData.isPanel = true;
     scene.add(topMesh);
 
@@ -221,6 +245,8 @@ function generateHorizontalPanels() {
       (topHeight + (i > 0 ? heightOptions[i - 1] : 0)) / 2 - 10,
       0
     );
+    leftPanel.castShadow = true; // 启用阴影投射
+    leftPanel.receiveShadow = true; // 启用阴影接收
     leftPanel.userData.isPanel = true;
     scene.add(leftPanel);
 
@@ -230,6 +256,8 @@ function generateHorizontalPanels() {
       (topHeight + (i > 0 ? heightOptions[i - 1] : 0)) / 2 - 10,
       0
     );
+    rightPanel.castShadow = true; // 启用阴影投射
+    rightPanel.receiveShadow = true; // 启用阴影接收
     rightPanel.userData.isPanel = true;
     scene.add(rightPanel);
   }
@@ -237,7 +265,7 @@ function generateHorizontalPanels() {
 
 // 生成垂直隔断
 function generateVerticalDividers() {
-  const sectionWidth = 300; // 每个窗口宽度的临界值 (300mm = 30cm)
+  const sectionWidth = 400; // 每个窗口宽度的临界值 (300mm = 30cm)
   const sections = Math.max(1, Math.floor(cabinetWidth.value / sectionWidth)); // 确保至少1个隔间
   const actualSectionWidth = cabinetWidth.value / sections;
 
@@ -250,6 +278,8 @@ function generateVerticalDividers() {
       const dividerGeometry = new THREE.BoxGeometry(20, dividerHeight, cabinetDepth.value);
       const dividerMesh = new THREE.Mesh(dividerGeometry, woodMaterial);
       dividerMesh.position.set(xOffset, (bottomHeight + topHeight) / 2 - 10, 0);
+      dividerMesh.castShadow = true; // 启用阴影投射
+      dividerMesh.receiveShadow = true; // 启用阴影接收
       dividerMesh.userData.isDivider = true;
       scene.add(dividerMesh);
     }
